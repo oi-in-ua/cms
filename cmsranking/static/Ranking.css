@@ -258,6 +258,93 @@ abbr {
     font: inherit;
     background-color: #FFFFFF;
     outline: 0;
+    width: 10em;
+}
+
+.user_hidden {
+    display: none;
+}
+
+#GradeFiltersSelect {
+    left: 12em;
+    position: relative;
+    float: left;
+    height: 50px;
+}
+
+#GradeFiltersSelect label {
+    display: inline-block;
+    padding-top: 0.4em;
+    font-size: 1.6em;
+}
+
+.GradeFiltersSelect_label {
+    font-size: 1.7em;
+}
+
+
+.GradeChoiceLabel {
+  display: block;
+  position: relative;
+  padding-left: 1.5em;
+  margin-top: 0.1em;
+  margin-left: 0.5em;
+  cursor: pointer;
+  font-size: 1.6em;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Hide the browser's default checkbox */
+.GradeChoiceLabel input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+/* Create a custom checkbox */
+.GradeChoice_checkmark {
+  position: absolute;
+  top: 0.4em;
+  left: 0.2em;
+  height: 1em;
+  width: 1em;
+  background-color: #eee;
+  border: #1f6377 solid 1px;
+}
+
+.GradeChoiceLabel:hover input ~ .GradeChoice_checkmark {
+  background-color: #ccc;
+}
+
+.GradeChoiceLabel input:checked ~ .GradeChoice_checkmark {
+  background-color: #2196F3;
+}
+
+.GradeChoice_checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+.GradeChoiceLabel input:checked ~ .GradeChoice_checkmark:after {
+  display: block;
+}
+
+.GradeChoiceLabel .GradeChoice_checkmark:after {
+  left: 0.35em;
+  top: 0.18em;
+  width: 0.2em;
+  height: 0.4em;
+  border: solid white;
+  border-width: 0 0.13em 0.13em 0;
+  -webkit-transform: rotate(45deg);
+  -ms-transform: rotate(45deg);
+  transform: rotate(45deg);
 }
 
 #TeamSearch_bg {

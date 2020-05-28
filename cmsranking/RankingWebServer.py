@@ -629,3 +629,7 @@ def main():
     finally:
         gevent.joinall(list(gevent.spawn(s.stop) for s in servers))
     return 0
+
+
+if __name__ == '__main__':
+    main()

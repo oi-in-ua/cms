@@ -36,10 +36,17 @@ var escapeHTML = (function() {
 var Scoreboard = new function () {
     var self = this;
 
+
+    self.ALLOWED_GRADES_CHOICES = [9, 10, 11];
+    self.FILTER_GRADES = [];
+
     self.init = function () {
         self.tcols_el = $('#Scoreboard_cols');
         self.thead_el = $('#Scoreboard_head');
         self.tbody_el = $('#Scoreboard_body');
+
+        self.generate_filtered_grades();
+        self.init_grades_filters();
 
         self.generate();
 
@@ -52,6 +59,72 @@ var Scoreboard = new function () {
         DataStore.select_events.add(self.select_handler);
     };
 
+    self.generate_filtered_grades = function(){
+        const urlParams = new URLSearchParams(window.location.search);
+        const grades_list = urlParams.getAll('filter_grade');
+        self.FILTER_GRADES = grades_list.map(function (val) {
+            return parseInt(val, 10);
+        }).filter(function (val) {
+            return !isNaN(val);
+        }).filter(function (val) {
+            return self.ALLOWED_GRADES_CHOICES.includes(val);
+        });
+        if(self.FILTER_GRADES.length === 0)
+            self.FILTER_GRADES = Array.from(self.ALLOWED_GRADES_CHOICES);
+    };
+
+    self.init_grades_filters = function(){
+        const checked_flag = function (value) {
+            if(self.FILTER_GRADES.includes(value))
+                return ' checked ';
+            return ' '
+        };
+
+        const grade_filters_select = $('#GradeFiltersSelect')[0];
+
+        self.ALLOWED_GRADES_CHOICES.map(function (grade_choice) {
+            return '<label class="GradeChoiceLabel">' +
+                '<input' +
+                ' class="GradeChoice"' +
+                ' id="GradeChoice' +
+                grade_choice +
+                '" type="checkbox"' +
+                checked_flag(grade_choice) +
+                ' value="' + grade_choice + '">' + grade_choice +
+                '<span class="GradeChoice_checkmark"></span>' +
+                '</label>';
+        }).map(function (element) {
+            const jq_element = $(element);
+            jq_element.change(self.on_filter_grades_change);
+            grade_filters_select.append(jq_element[0]);
+        });
+    };
+
+    self.on_filter_grades_change = function(event){
+        const value = parseInt(event.target.value, 10);
+        if(isNaN(value)) {
+            console.error("Grade filter has value other than integer");
+            return;
+        }
+        if(!self.ALLOWED_GRADES_CHOICES.includes(value)){
+            console.error("Grade filter should include only " + self.ALLOWED_GRADES_CHOICES.join(','));
+        }
+        if(event.target.checked) {
+            self.FILTER_GRADES.push(value);
+        } else {
+            self.FILTER_GRADES = self.FILTER_GRADES.filter(function (grade_choice) {
+                return grade_choice !== value;
+            });
+        }
+        self.filter();
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.delete('filter_grade');
+        self.FILTER_GRADES.map(function (value) {
+            urlParams.append('filter_grade', value);
+        });
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?' + urlParams.toString();
+        window.history.pushState({ path: newUrl }, '', newUrl);
+    };
 
     self.generate = function () {
         self.tcols_el.html(self.make_cols());
@@ -153,8 +226,8 @@ var Scoreboard = new function () {
         var result = " \
 <col class=\"sel\"/> \
 <col class=\"rank\"/> \
-<col class=\"f_name\"/> <col/><col/><col/><col/><col/><col/><col/><col/><col/> \
-<col class=\"l_name\"/> <col/><col/><col/><col/><col/><col/><col/><col/><col/> \
+<col class=\"l_name\"/> <col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/> \
+<col class=\"grade\"/> \
 <col class=\"team\"/>";
 
         var contests = DataStore.contest_list;
@@ -188,8 +261,8 @@ var Scoreboard = new function () {
 <tr> \
     <th class=\"sel\"></th> \
     <th class=\"rank\">Rank</th> \
-    <th colspan=\"10\" class=\"f_name\">First Name</th> \
-    <th colspan=\"10\" class=\"l_name\">Last Name</th> \
+    <th colspan=\"12\" class=\"l_name\">Name</th> \
+    <th class=\"grade\">Grade</th> \
     <th class=\"team\">Team</th>";
 
         var contests = DataStore.contest_list;
@@ -224,7 +297,7 @@ var Scoreboard = new function () {
             user["row"] = $(self.make_row(user))[0];
             self.user_list.push(user);
         }
-
+        self.filter();
         self.sort();
     };
 
@@ -235,8 +308,8 @@ var Scoreboard = new function () {
 <tr class=\"user" + (user["selected"] > 0 ? " selected color" + user["selected"] : "") + "\" data-user=\"" + user["key"] + "\"> \
     <td class=\"sel\"></td> \
     <td class=\"rank\">" + user["rank"] + "</td> \
-    <td colspan=\"10\" class=\"f_name\">" + escapeHTML(user["f_name"]) + "</td> \
-    <td colspan=\"10\" class=\"l_name\">" + escapeHTML(user["l_name"]) + "</td>";
+    <td colspan=\"12\" class=\"l_name\">" + escapeHTML(user["l_name"]) + "</td> \
+    <td class=\"grade\">" + escapeHTML(user["grade"] || '') +  "</td>";
 
         if (user['team']) {
             result += " \
@@ -374,6 +447,20 @@ var Scoreboard = new function () {
         self.tbody_el.append(fragment);
     };
 
+    self.filter = function() {
+      self.user_list.map(function (user) {
+          const $row =  $(user["row"]);
+          self.filter_user_if_required(user['grade'], $row);
+      });
+    };
+
+    self.filter_user_if_required = function(user_grade, $row){
+        if(self.FILTER_GRADES.length !== 0 && !self.FILTER_GRADES.includes(user_grade)) {
+            $row.addClass('user_hidden');
+        } else {
+            $row.removeClass('user_hidden');
+        }
+    };
 
     // This callback is called by the DataStore when a user is created.
     self.create_user = function (u_id, user) {
@@ -388,7 +475,9 @@ var Scoreboard = new function () {
         // The row will be at the bottom (since it has a score of zero and thus
         // the maximum rank), but we may still need to sort it due to other
         // users having that score and the sort-by-name clause.
+        self.filter_user_if_required(user['grade'], $row);
         self.move_user(user);
+
     };
 
 
@@ -411,6 +500,7 @@ var Scoreboard = new function () {
         } else {
             $row.children(".team").text("");
         }
+        self.filter_user_if_required(user['grade'], $row);
     };
 
 
