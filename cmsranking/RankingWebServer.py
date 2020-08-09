@@ -469,6 +469,7 @@ class RootHandler:
         response.response = wrap_file(environ, open(self.path, 'rb'))
         response.direct_passthrough = True
         response.set_cookie('use_filter', str(self.filter_type))
+        response.headers['Cache-Control'] = 'max-age=600'
 
         return response
 
