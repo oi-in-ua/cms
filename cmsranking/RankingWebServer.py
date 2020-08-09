@@ -39,7 +39,7 @@ from werkzeug.wsgi import responder, wrap_file, SharedDataMiddleware, \
 # Needed for initialization. Do not remove.
 import cmsranking.Logger  # noqa
 from cmscommon.eventsource import EventSource
-from cmsranking.Config import Config
+from cmsranking.Config import Config, FilterType
 from cmsranking.Contest import Contest
 from cmsranking.Entity import InvalidData
 from cmsranking.Scoring import ScoringStore
@@ -447,8 +447,9 @@ class ImageHandler:
 
 class RootHandler:
 
-    def __init__(self, location):
+    def __init__(self, location, config: Config):
         self.path = os.path.join(location, "Ranking.html")
+        self.filter_type = config.filter_type
 
     def __call__(self, environ, start_response):
         return self.wsgi_app(environ, start_response)
@@ -467,6 +468,7 @@ class RootHandler:
         # TODO check for If-Modified-Since and If-None-Match
         response.response = wrap_file(environ, open(self.path, 'rb'))
         response.direct_passthrough = True
+        response.set_cookie('use_filter', str(self.filter_type))
 
         return response
 
@@ -525,9 +527,10 @@ def main():
                         help="drop the data already stored")
     parser.add_argument("-y", "--yes", action="store_true",
                         help="do not require confirmation on dropping data")
+    parser.add_argument("--filter", type=FilterType, default=FilterType.grade_filter, choices=list(FilterType))
     args = parser.parse_args()
 
-    config = Config()
+    config = Config(filter_type=args.filter)
     config.load(args.config)
 
     if args.drop:
@@ -574,7 +577,7 @@ def main():
     stores["scoring"].init_store()
 
     toplevel_handler = RoutingHandler(
-        RootHandler(config.web_dir),
+        RootHandler(config.web_dir, config),
         DataWatcher(stores, config.buffer_size),
         ImageHandler(
             os.path.join(config.lib_dir, '%(name)s'),

@@ -39,14 +39,24 @@ var Scoreboard = new function () {
 
     self.ALLOWED_GRADES_CHOICES = [9, 10, 11];
     self.FILTER_GRADES = [];
+    self.FILTER_CONTESTS = [];
+    self.AVAILABLE_CONTESTS = [];
+    self.DISABLE_CONTEST_FILTER = true;
 
     self.init = function () {
         self.tcols_el = $('#Scoreboard_cols');
         self.thead_el = $('#Scoreboard_head');
         self.tbody_el = $('#Scoreboard_body');
 
-        self.generate_filtered_grades();
-        self.init_grades_filters();
+        if($.cookie('use_filter') === 'grade_filter'){
+            self.generate_filtered_grades();
+            self.init_grades_filters();
+        } else {
+            self.DISABLE_CONTEST_FILTER = false;
+            self.generate_available_contests();
+            self.generate_filtered_contests();
+            self.init_contest_filters();
+        }
 
         self.generate();
 
@@ -57,6 +67,71 @@ var Scoreboard = new function () {
         DataStore.score_events.add(self.score_handler);
         DataStore.rank_events.add(self.rank_handler);
         DataStore.select_events.add(self.select_handler);
+    };
+
+    self.generate_available_contests = function(){
+        self.AVAILABLE_CONTESTS = Object.keys(DataStore.contests).sort();
+    };
+
+    self.generate_filtered_contests = function(){
+        const urlParams = new URLSearchParams(window.location.search);
+        const contest_list = urlParams.getAll('filter_contest');
+        self.FILTER_CONTESTS = contest_list.filter(function (val) {
+            return self.AVAILABLE_CONTESTS.includes(val);
+        });
+        // Hack for new users = enable last filter if the user is 'new'
+        if(self.FILTER_CONTESTS.length === 0 && !window.location.href.includes('?')){
+            const choice = self.AVAILABLE_CONTESTS[self.AVAILABLE_CONTESTS.length - 1];
+            self.FILTER_CONTESTS = [choice];
+        }
+    };
+
+    self.init_contest_filters = function(){
+        const checked_flag = function (value) {
+            if(self.FILTER_CONTESTS.includes(value))
+                return ' checked ';
+            return ' '
+        };
+
+        const contest_filters_select = $('#ContestFiltersSelect');
+        contest_filters_select.css('display', 'block');
+
+        self.AVAILABLE_CONTESTS.map(function (contest_choice) {
+            return '<label class="FilterChoiceLabel">' +
+                '<input' +
+                ' class="GradeChoice"' +
+                '" type="checkbox"' +
+                checked_flag(contest_choice) +
+                ' value="' + contest_choice + '">' + contest_choice +
+                '<span class="FilterChoice_checkmark"></span>' +
+                '</label>';
+        }).map(function (element) {
+            const jq_element = $(element);
+            jq_element.change(self.on_filter_contest_change);
+            contest_filters_select.append(jq_element[0]);
+        });
+    };
+
+    self.on_filter_contest_change = function(event){
+        const value = event.target.value;
+
+        if(!self.AVAILABLE_CONTESTS.includes(value)){
+            console.error("Grade filter should include only " + self.ALLOWED_GRADES_CHOICES.join(','));
+        }
+        if(event.target.checked) {
+            self.FILTER_CONTESTS.push(value);
+        } else {
+            self.FILTER_CONTESTS = self.FILTER_CONTESTS.filter(function (contest_choice) {
+                return contest_choice !== value;
+            });
+        }
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.delete('filter_contest');
+        self.FILTER_CONTESTS.map(function (value) {
+            urlParams.append('filter_contest', value);
+        });
+        window.location.href = window.location.protocol +
+            "//" + window.location.host + window.location.pathname + '?' + urlParams.toString();
     };
 
     self.generate_filtered_grades = function(){
@@ -80,18 +155,17 @@ var Scoreboard = new function () {
             return ' '
         };
 
-        const grade_filters_select = $('#GradeFiltersSelect')[0];
+        const grade_filters_select = $('#GradeFiltersSelect');
+        grade_filters_select.css('display', 'block');
 
         self.ALLOWED_GRADES_CHOICES.map(function (grade_choice) {
-            return '<label class="GradeChoiceLabel">' +
+            return '<label class="FilterChoiceLabel">' +
                 '<input' +
                 ' class="GradeChoice"' +
-                ' id="GradeChoice' +
-                grade_choice +
                 '" type="checkbox"' +
                 checked_flag(grade_choice) +
                 ' value="' + grade_choice + '">' + grade_choice +
-                '<span class="GradeChoice_checkmark"></span>' +
+                '<span class="FilterChoice_checkmark"></span>' +
                 '</label>';
         }).map(function (element) {
             const jq_element = $(element);
@@ -236,12 +310,14 @@ var Scoreboard = new function () {
             var c_id = contest["key"];
 
             var tasks = contest["tasks"];
-            for (var j in tasks) {
-                var task = tasks[j];
-                var t_id = task["key"];
+            if(self.DISABLE_CONTEST_FILTER || self.FILTER_CONTESTS.includes(contest['key'])) {
+                for (var j in tasks) {
+                    var task = tasks[j];
+                    var t_id = task["key"];
 
-                result += " \
+                    result += " \
 <col class=\"score task\" data-task=\"" + t_id + "\" data-sort_key=\"t_" + t_id + "\"/> <col/><col/>";
+                }
             }
 
             result += " \
@@ -271,12 +347,14 @@ var Scoreboard = new function () {
             var c_id = contest["key"];
 
             var tasks = contest["tasks"];
-            for (var j in tasks) {
-                var task = tasks[j];
-                var t_id = task["key"];
+            if(self.DISABLE_CONTEST_FILTER || self.FILTER_CONTESTS.includes(contest['key'])) {
+                for (var j in tasks) {
+                    var task = tasks[j];
+                    var t_id = task["key"];
 
-                result += " \
+                    result += " \
     <th colspan=\"3\" class=\"score task\" data-task=\"" + t_id + "\" data-sort_key=\"t_" + t_id + "\"><abbr title=\"" + escapeHTML(task["name"]) + "\">" + escapeHTML(task["short_name"]) + "</abbr></th>";
+                }
             }
 
             result += " \
@@ -325,13 +403,16 @@ var Scoreboard = new function () {
             var c_id = contest["key"];
 
             var tasks = contest["tasks"];
-            for (var j in tasks) {
-                var task = tasks[j];
-                var t_id = task["key"];
 
-                var score_class = self.get_score_class(user["t_" + t_id], task["max_score"]);
-                result += " \
-    <td colspan=\"3\" class=\"score task " + score_class + "\" data-task=\"" + t_id + "\" data-sort_key=\"t_" + t_id + "\">" + round_to_str(user["t_" + t_id], task["score_precision"]) + "</td>";
+            if(self.DISABLE_CONTEST_FILTER || self.FILTER_CONTESTS.includes(contest['key'])) {
+                for (var j in tasks) {
+                    var task = tasks[j];
+                    var t_id = task["key"];
+
+                    var score_class = self.get_score_class(user["t_" + t_id], task["max_score"]);
+                    result += " \
+        <td colspan=\"3\" class=\"score task " + score_class + "\" data-task=\"" + t_id + "\" data-sort_key=\"t_" + t_id + "\">" + round_to_str(user["t_" + t_id], task["score_precision"]) + "</td>";
+                }
             }
 
             var score_class = self.get_score_class(user["c_" + c_id], contest["max_score"]);

@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import sys
+from enum import Enum
 
 import pkg_resources
 
@@ -33,13 +34,22 @@ logger = logging.getLogger(__name__)
 CMS_RANKING_CONFIG_ENV_VAR = "CMS_RANKING_CONFIG"
 
 
+class FilterType(Enum):
+    grade_filter = 'grade_filter'
+    contest_filter = 'contest_filter'
+
+    def __str__(self):
+        return self.value
+
+
 class Config:
     """An object holding the current configuration.
 
     """
-    def __init__(self):
-        """Fill this object with the default values for each key.
+    filter_type: FilterType
 
+    def __init__(self, **kwargs):
+        """Fill this object with the default values for each key.
         """
         # Connection.
         self.bind_address = ''
@@ -56,6 +66,8 @@ class Config:
 
         # Buffers
         self.buffer_size = 100  # Needs to be strictly positive.
+
+        self.__dict__.update(kwargs)
 
         # File system.
         # TODO: move to cmscommon as it is used both here and in cms/conf.py
